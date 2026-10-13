@@ -32,8 +32,14 @@ To provide badminton enthusiasts in Flanders with powerful tools for:
 - Strategic competition planning
 - Future ranking simulations
 - Tournament outcome predictions
+- Tournament draw overviews
 - League scenario analysis
 - Enhanced data visualization and insights
+- Mobile access on iOS and Android
+- Club management (interclub team composition)
+- Personal dashboard for favorite players and teams
+- User accounts and login (future)
+- Direct links to players and tournaments on toernooi.nl
 
 ### Key Stakeholders
 - **Players**: Individual badminton players seeking ranking insights and tournament strategies
@@ -166,6 +172,9 @@ The backend follows strict hexagonal architecture principles:
 - **PostgreSQL**: Production database for data persistence
 - **Hibernate**: Object-relational mapping implementation
 
+#### Optimization
+- **Google OR-Tools (CP-SAT)**: Constraint programming solver for team generation (Choco Solver is an alternative)
+
 #### Testing Frameworks
 - **JUnit 5**: Unit testing framework
 - **ArchUnit**: Architecture testing to enforce design principles
@@ -190,6 +199,22 @@ The backend follows strict hexagonal architecture principles:
 
 #### HTTP Client
 - **Axios** (planned): Promise-based HTTP client for API communication
+
+### Mobile Technologies
+
+#### Core Framework
+- **React Native**: Cross-platform native mobile apps with React
+- **Expo**: Toolchain for development, builds and over-the-air updates
+- **TypeScript**: Shared with the web frontend
+
+#### Navigation and State
+- **React Navigation** (planned): Screen navigation (stack and tab)
+- **React Query** (planned): Server state and caching, important for offline use of draws and rankings
+
+#### Code Sharing with the Web Frontend
+- TypeScript types and the API client are shared (e.g. a `shared/` package)
+- UI components are not shared: web uses React DOM, mobile uses React Native components
+- Both clients consume the same backend REST API (`/api/v1/...`)
 
 ### Infrastructure and DevOps
 
@@ -240,6 +265,13 @@ BetterBadmintonVlaanderen/
 │   │               └── *.java         # Concrete architecture tests
 │   ├── pom.xml                        # Maven configuration
 │   └── Dockerfile                     # Backend container configuration
+│
+├── mobile/                            # React Native (Expo) mobile app
+│   ├── app/                           # Screens and navigation
+│   ├── components/                    # React Native components
+│   ├── services/                      # API service layer (shared client)
+│   ├── app.json                       # Expo configuration
+│   └── package.json                   # Node.js dependencies
 │
 └── frontend/                          # React frontend application
     ├── public/                        # Public assets
@@ -444,9 +476,16 @@ App
 /                          # Dashboard
 /ranking/simulation        # Ranking simulation tool
 /tournament/prediction     # Tournament prediction
+/tournament/:id/draw       # Tournament draw overview
 /competition/scenarios     # Competition scenario analysis
 /player/profile/:id        # Player profile
 /club/overview/:clubName   # Club overview
+/club/:clubId/teams        # Interclub team management
+/dashboard/favorites       # Favorites dashboard
+/login                     # Login (future)
+/account                   # Account and linked player profile (future)
+/account/clubs             # Clubs you manage (future)
+/club/:clubId/teams/history # Team composition versions
 ```
 
 ### TypeScript Integration
@@ -1023,6 +1062,46 @@ interface RankingSimulationPage {
 }
 ```
 
+### Tournament Draws
+
+#### Functional Requirements
+
+**Overview Capabilities:**
+- Import the draw of a tournament from the Badminton Vlaanderen portal
+- Show all draws of a tournament (MS, WS, MD, WD, XD) in one compact overview
+- Display rounds, seeds, byes and results (when played) per draw
+- Highlight the path of a selected player or club through the draw
+- Filter and search by player, club, ranking level or round
+
+**Efficiency Requirements:**
+- Compact layout: a full draw is readable without excessive scrolling
+- Draws are cached; only refreshed when the portal data changes
+- Large draws (64+ entries) load lazily per round
+- The draw feeds the Tournament Prediction feature (bracket input)
+
+**External Links:**
+- A "View tournament on toernooi.nl" button on the tournament and draw pages, and a link on each player in the draw (see [External Links](#external-links-to-toernooinl))
+
+#### Technical Implementation
+
+**Domain model:**
+```java
+public record Draw(
+    TournamentId tournamentId,
+    Discipline discipline,
+    List<Round> rounds,
+    List<Seed> seeds
+) {}
+
+public record Round(String name, List<DrawMatch> matches) {}
+```
+
+**Hexagonal layout:**
+- Domain: `Draw`, `Round`, `DrawMatch`, `Seed`
+- Application: `GetTournamentDrawUseCase`, port `DrawProvider`
+- Infrastructure: `PortalDrawAdapter` (portal integration), `DrawController`
+- Frontend: `TournamentDrawOverview` component in `/tournament/:id/draw`
+
 ### Tournament Prediction
 
 #### Functional Requirements
@@ -1104,6 +1183,239 @@ public class CompetitionScenarioService {
 }
 ```
 
+### Club Management: Interclub Teams
+
+#### Functional Requirements
+
+**Team Composition:**
+- Maintain the club's player pool (imported from the portal, with manual additions)
+- Divide the players over the club's interclub teams (Team 1, Team 2, ...)
+- Mark players as base players, reserves or unassigned
+- Show index sums per team and flag rule violations directly in the overview
+
+**Version Control:**
+- Every change to a composition is stored as an immutable version (author, timestamp, comment)
+- Versions have a status: `DRAFT` or `PUBLISHED`; only one published version is active
+- Compare two versions (players moved, added or removed per team)
+- Restore an earlier version (creates a new version, history is never rewritten)
+- Branching of alternatives ("what if we split team 2 differently") is a possible later extension
+
+**Generated Base Team (Constraint Programming):**
+- A solver proposes a valid base team for every interclub team from the player pool
+- Input: player indexes/rankings per discipline, interclub rules, optional manual locks
+- Hard constraints (all configurable per season/division, to be verified against the official Badminton Vlaanderen interclub regulations):
+  - Each player is in at most one team
+  - The index sum of a team stays within the maximum allowed for its division
+  - Required team makeup per team (e.g. number of men and women)
+  - Higher teams are not weaker than lower teams (index ordering between teams)
+  - Locked players stay in their team
+- Soft constraints / objectives:
+  - Balanced strength across teams, or maximal strength for the top teams
+  - Minimal changes compared to the previous version
+  - Respect player preferences and unavailability
+- If no valid solution exists, the solver reports which constraints conflict
+- The result is saved as a new `DRAFT` version, so it can be reviewed and adjusted by hand
+
+**Exports:**
+- Per team (team sheet with players and indexes)
+- All teams (one document or one sheet per team)
+- Full club overview (all teams, reserves, unassigned players, index sums)
+- Formats: PDF, Excel (XLSX) and CSV
+- Any version can be exported, not only the published one
+
+#### Technical Implementation
+
+**Domain model:**
+```java
+public record Player(PlayerId id, String name, Gender gender, Ranking ranking, Index index) {}
+
+public record Team(TeamId id, String name, Division division, List<PlayerId> basePlayers,
+                   List<PlayerId> reserves) {}
+
+public record TeamComposition(CompositionId id, int versionNumber, VersionStatus status,
+                              String author, Instant createdAt, String comment,
+                              List<Team> teams) {}
+```
+
+**Constraint model (OR-Tools CP-SAT):**
+```java
+// x[p][t] = 1 if player p is a base player of team t
+for (Player p : players) {
+    model.addAtMostOne(x[p][*]);                       // one team per player
+}
+for (Team t : teams) {
+    model.addLinearConstraint(indexSum(t), 0, t.division().maxIndex());
+}
+model.minimize(weightedObjective());                   // balance + minimal change
+```
+
+**Hexagonal layout:**
+- Domain: `Player`, `Team`, `TeamComposition`, `InterclubRules`, `TeamGenerationPolicy`
+- Application: `GenerateBaseTeamsUseCase`, `SaveCompositionVersionUseCase`, `CompareVersionsUseCase`, `RestoreVersionUseCase`, `ExportTeamsUseCase`
+- Ports: `TeamSolverPort`, `CompositionRepository`, `PlayerPoolProvider`, `ExportPort`
+- Infrastructure: `CpSatTeamSolver` (OR-Tools adapter), `JpaCompositionRepository`, `PdfExportAdapter`, `XlsxExportAdapter`, `CsvExportAdapter`, `ClubTeamController`
+- The solver sits behind a port so the domain stays independent of OR-Tools
+
+**Access control:** only authorized club administrators can change or publish compositions; other members get read-only access. This requires authentication and club roles, see [User Accounts and Login](#user-accounts-and-login-future).
+
+### Favorites Dashboard
+
+#### Functional Requirements
+
+**Favorites:**
+- Mark players, and optionally clubs and teams, as favorites (add and remove from any profile page)
+- Each favorite card has a "View on toernooi.nl" button (see [External Links](#external-links-to-toernooinl))
+- The user's own player profile and interclub teams can be linked, so "your" teams show up automatically
+- Favorites are stored per user and sync between web and mobile
+
+**Dashboard Overview:**
+- One card per favorite player: current ranking and index per discipline, change since last period, recent form (last N results)
+- Widgets can be reordered and hidden; the layout is remembered per user
+- Mobile: cards stack in one column and open a detail view; web: grid layout
+
+**Graphs:**
+- Ranking/index progression over time per discipline
+- Win/loss trend (rolling form)
+- Results per discipline and per tournament level
+- Compare several favorites in one chart
+
+**Statistics:**
+- Win percentage overall, per discipline and per period
+- Head-to-head record between two favorites, or against a chosen opponent
+- Tournament results: rounds reached, titles, best result
+- Interclub statistics: matches played and won per season
+
+**History:**
+- Timeline of past matches and tournament results per favorite
+- Filter by period, discipline, tournament level and opponent
+
+**Team Rankings:**
+- Standings of the interclub divisions of the teams you play in
+- Your team highlighted, with points, matches played and distance to promotion/relegation positions
+- Link to Competition Scenarios ("what do we need to win the league?") from a standings widget
+
+#### Technical Implementation
+
+**Data:**
+- Ranking history is not guaranteed to be available from the portal for past periods, so ranking snapshots are stored by our own backend on every synchronization; the history builds up over time
+- Match and tournament history is imported from the portal and cached
+- Statistics are computed in the backend and cached per favorite; the dashboard makes one aggregated call to keep it fast
+
+**Domain model:**
+```java
+public record Favorite(UserId userId, FavoriteType type, String targetId, Instant addedAt) {}
+
+public record PlayerStats(PlayerId playerId, List<RankingSnapshot> rankingHistory,
+                          WinLossRecord record, List<MatchResult> recentMatches) {}
+
+public record TeamStanding(TeamId teamId, Division division, int position, int points,
+                           int played, boolean highlighted) {}
+```
+
+**Hexagonal layout:**
+- Domain: `Favorite`, `PlayerStats`, `RankingSnapshot`, `TeamStanding`
+- Application: `ManageFavoritesUseCase`, `GetDashboardUseCase`, `GetPlayerStatsUseCase`, `GetHeadToHeadUseCase`
+- Ports: `FavoriteRepository`, `RankingHistoryRepository`, `MatchHistoryProvider`, `StandingsProvider`
+- Infrastructure: `JpaFavoriteRepository`, `PortalMatchHistoryAdapter`, `PortalStandingsAdapter`, scheduled `RankingSnapshotJob`, `DashboardController`
+- Frontend: `FavoritesDashboard` page with `PlayerCard`, `RankingChart`, `FormChart`, `HeadToHeadTable`, `StandingsTable`, `MatchTimeline` components
+- Mobile: the same widgets as React Native screens, using the shared types and API client; a charting library is still to be chosen for each client
+
+**Access control:** favorites and layout are per user, so this feature requires authentication, see [User Accounts and Login](#user-accounts-and-login-future). Player statistics themselves come from public portal data.
+
+### External Links to toernooi.nl
+
+#### Functional Requirements
+- A **"View on toernooi.nl"** button wherever a player is shown: player profile, favorite card, draw entry, team composition and standings rows
+- A **"View tournament"** button on every tournament and draw page, opening the tournament on toernooi.nl
+- Optionally also a link to the matching page on the official Badminton Vlaanderen portal
+- If no external link is known for an item, the button is hidden rather than disabled
+- Web: opens in a new tab. Mobile: opens in the system browser or an in-app browser (`Linking` / `expo-web-browser`)
+- The label makes clear the user leaves the app, for example with an external-link icon
+
+#### Technical Implementation
+
+**Where the links come from:**
+- The portal import stores the external identifiers (tournament id and player id on toernooi.nl) next to our own ids
+- The backend builds the URLs from a configurable base URL plus these ids, so a change in toernooi.nl's URL scheme only needs a configuration change
+- Links are included in the API responses as `externalLinks`, so web and mobile show the same buttons without building URLs themselves
+
+```java
+public record ExternalLinks(URI toernooiNl, URI portal) {}   // either may be null
+```
+
+```yaml
+external-links:
+  toernooi-nl:
+    base-url: <to be verified>        # Badminton Vlaanderen's toernooi.nl environment
+    player-path: <to be verified>
+    tournament-path: <to be verified>
+```
+
+**Hexagonal layout:**
+- Domain: `ExternalLinks`, `ExternalId`
+- Application: `ResolveExternalLinksUseCase`, port `ExternalLinkBuilder`
+- Infrastructure: `ToernooiNlLinkBuilder`, `PortalLinkBuilder`, configuration properties
+- Frontend and mobile: an `ExternalLinkButton` component
+
+**Security:** only `https` links to allow-listed hosts are rendered. On web the links use `rel="noopener noreferrer"`.
+
+**Open point:** the exact toernooi.nl URL format and whether Badminton Vlaanderen uses its own subdomain still need to be verified. Matching a player to the toernooi.nl profile depends on the imported id being reliable; if only names are available, the button should be left out rather than risk linking the wrong person.
+
+### User Accounts and Login (Future)
+
+**Status:** planned for a later phase. Until then the application works with public data only, and the features marked "requires authentication" below stay unavailable or local to the device.
+
+#### Functional Requirements
+
+**Accounts and Login:**
+- Register and log in on web and mobile with the same account
+- Anonymous use stays possible for public data: rankings, tournament draws, predictions and simulations
+- Sign-in methods (to be decided): email and password, and/or a social or portal login; if the Badminton Vlaanderen portal offers OAuth or SSO, the portal login documented under "Authentication and Authorization" is the preferred route
+- Email verification, password reset, and logout on all devices
+
+**What an account stores:**
+- Favorites and dashboard layout (Favorites Dashboard)
+- Saved ranking simulations and competition scenarios
+- A link to the user's own player profile, claimed and verified, so their teams show up automatically
+- The clubs the user manages or belongs to
+
+**Club Management:**
+- A user can create a club workspace or request access to an existing one
+- Roles per club: `CLUB_ADMIN` (manage members and roles, publish compositions), `TEAM_CAPTAIN` (edit the compositions of their own team), `MEMBER` (read-only)
+- All changes to team compositions are attributed to the user (author of each version)
+- Ownership of a club workspace can be transferred, and a club needs at least one admin
+
+#### Technical Implementation
+
+**Approach:**
+- Spring Security with stateless JWT access tokens and refresh tokens, as in the security configuration under Security Considerations
+- Web and mobile use the same flow; mobile stores tokens in the secure storage of the device (Keychain/Keystore), web keeps the access token in memory and the refresh token in an HttpOnly cookie
+- Passwords are stored with a strong adaptive hash (e.g. bcrypt or Argon2); no passwords are ever logged or returned
+- Authorization is checked in the application layer per use case (for example `SaveCompositionVersionUseCase` requires `CLUB_ADMIN` or `TEAM_CAPTAIN`), not only on the controller
+
+**Domain model:**
+```java
+public record User(UserId id, String email, String displayName, Instant createdAt,
+                   PlayerId linkedPlayer) {}
+
+public record ClubMembership(UserId userId, ClubId clubId, ClubRole role) {}
+
+public enum ClubRole { CLUB_ADMIN, TEAM_CAPTAIN, MEMBER }
+```
+
+**Hexagonal layout:**
+- Domain: `User`, `ClubMembership`, `ClubRole`
+- Application: `RegisterUserUseCase`, `AuthenticateUserUseCase`, `LinkPlayerProfileUseCase`, `ManageClubMembersUseCase`
+- Ports: `UserRepository`, `ClubMembershipRepository`, `PasswordHasher`, `TokenIssuer`, `EmailSender`
+- Infrastructure: `JpaUserRepository`, `JwtTokenIssuer`, `SecurityConfig`, `AuthController`, `AccountController`
+- Frontend and mobile: login and account screens, an auth context holding the session, and an API client that attaches the token and refreshes it
+
+**Privacy:** the application stores personal data (email, linked player), so it must follow GDPR: data minimization, a way to export and delete an account, and a clear privacy statement. The portal's terms of use for player data should be checked before player profiles are linked to accounts.
+
+**Features that depend on this:**
+- Favorites Dashboard (favorites and layout per user)
+- Club Management: Interclub Teams (roles, version authorship, publishing)
+
 ---
 
 ## API Documentation
@@ -1175,13 +1487,63 @@ GET    /api/v1/tournaments                # List tournaments
 GET    /api/v1/tournaments/{id}           # Get tournament details
 POST   /api/v1/tournaments/{id}/predict   # Predict tournament outcomes
 GET    /api/v1/tournaments/{id}/bracket   # Get tournament bracket
+GET    /api/v1/tournaments/{id}/draws     # List draws (one per discipline)
+GET    /api/v1/tournaments/{id}/draws/{discipline}  # Get a single draw
 ```
+
+**Draw query parameters** (`/draws/{discipline}`): `round`, `player`, `club`, `rankingLevel`
+
+**External links:** tournament and player responses include an optional `externalLinks` object (`toernooiNl`, `portal`), which the clients use for the "View on toernooi.nl" buttons.
 
 #### Competition Analysis
 ```
 GET    /api/v1/competitions               # List competitions
 POST   /api/v1/competitions/{id}/analyze  # Analyze competition scenarios
 GET    /api/v1/competitions/{id}/standings # Get current standings
+```
+
+#### Club Team Management
+```
+GET    /api/v1/clubs/{clubId}/players                       # Player pool
+GET    /api/v1/clubs/{clubId}/teams                         # Active (published) composition
+GET    /api/v1/clubs/{clubId}/compositions                  # List versions
+GET    /api/v1/clubs/{clubId}/compositions/{version}        # Get one version
+POST   /api/v1/clubs/{clubId}/compositions                  # Save new version (draft)
+POST   /api/v1/clubs/{clubId}/compositions/{version}/publish   # Publish a version
+POST   /api/v1/clubs/{clubId}/compositions/{version}/restore   # Restore as new version
+GET    /api/v1/clubs/{clubId}/compositions/diff?from=1&to=2    # Compare two versions
+POST   /api/v1/clubs/{clubId}/compositions/generate         # Generate base teams (solver)
+GET    /api/v1/clubs/{clubId}/compositions/{version}/export?scope=team|all|full&format=pdf|xlsx|csv
+```
+
+#### Favorites Dashboard
+```
+GET    /api/v1/me/favorites                           # List favorites
+POST   /api/v1/me/favorites                           # Add a favorite (player, club or team)
+DELETE /api/v1/me/favorites/{id}                      # Remove a favorite
+GET    /api/v1/me/dashboard                           # Aggregated dashboard data
+GET    /api/v1/players/{id}/stats?from=&to=&discipline=   # Player statistics
+GET    /api/v1/players/{id}/ranking-history           # Ranking/index snapshots over time
+GET    /api/v1/players/{id}/matches                   # Match and tournament history
+GET    /api/v1/players/{id}/head-to-head/{opponentId} # Head-to-head record
+GET    /api/v1/me/standings                           # Standings of your interclub teams
+```
+
+#### Accounts and Login (future)
+```
+POST   /api/v1/auth/register                          # Create an account
+POST   /api/v1/auth/login                             # Log in, returns access and refresh token
+POST   /api/v1/auth/refresh                           # Refresh the access token
+POST   /api/v1/auth/logout                            # Invalidate the refresh token
+POST   /api/v1/auth/password-reset                    # Request a password reset
+GET    /api/v1/me                                     # Current user
+PUT    /api/v1/me/player-link                         # Link own player profile
+DELETE /api/v1/me                                     # Delete account and personal data
+GET    /api/v1/me/clubs                               # Clubs the user belongs to
+POST   /api/v1/clubs                                  # Create a club workspace
+GET    /api/v1/clubs/{clubId}/members                 # List members and roles
+PUT    /api/v1/clubs/{clubId}/members/{userId}        # Change a member's role
+DELETE /api/v1/clubs/{clubId}/members/{userId}        # Remove a member
 ```
 
 ### Request/Response Examples
