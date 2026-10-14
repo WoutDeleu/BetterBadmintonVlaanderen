@@ -1,0 +1,3 @@
+{
+  "claudeMd": "## AI coding guidelines\n\n- We write tests first (TDD) before implementing behavior.\n- Prefer value objects over raw parameters/attributes whenever possible.\n- Use DDD with a clean hexagonal architecture (domain/application/infrastructure), keeping dependencies pointing inward.\n- Use the Context7 MCP to look up current, version-specific library and framework APIs instead of relying on memory.\n"
+}
