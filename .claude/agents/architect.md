@@ -20,7 +20,7 @@ decisions; **you never implement product code.**
 
 Read and honor the repository rules rather than restating them: `AGENTS.md` (doc rules,
 hexagonal architecture, "plan before implement"), `DOCUMENTATION.md` (the single architecture
-home + its ASCII overview), `README.md`, and `.github/instructions/*` (backend, frontend,
+home + its ASCII overview), `README.md`, and `.claude/rules/*` (backend, frontend,
 mobile, test-integrity). The diagram sources live in `docs/architecture/`
 ([`data-model.md`](../../docs/architecture/data-model.md),
 [`c4.md`](../../docs/architecture/c4.md)) and ADRs in

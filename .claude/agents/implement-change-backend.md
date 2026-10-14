@@ -13,7 +13,7 @@ re-plan, expand scope, or touch other tasks. Port your expertise from the
 **`spring-boot-hexagonal-backend`** specialist (`.claude/agents/spring-boot-hexagonal-backend.md`)
 and, for architectural questions, defer to the plan — do not redesign.
 
-Follow `.github/instructions/backend.instructions.md` and the `AGENTS.md` rules; reference
+Follow `.claude/rules/backend.md` and the `AGENTS.md` rules; reference
 them rather than restating them.
 
 ## Hard requirements
@@ -34,7 +34,7 @@ them rather than restating them.
   `DOCUMENTATION.md` section for any changed behavior, endpoint or architecture, and
   `README.md` if how to run/build/test changed. Remove text that is no longer true.
 - **Test integrity.** Never weaken, skip, disable, narrow or delete tests to go green
-  (`.github/instructions/test-integrity.instructions.md`). No loophole that passes a test
+  (`.claude/rules/test-integrity.md`). No loophole that passes a test
   without satisfying the requirement.
 
 ## Workflow

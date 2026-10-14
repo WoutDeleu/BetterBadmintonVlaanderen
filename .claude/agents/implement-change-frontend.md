@@ -13,7 +13,7 @@ re-plan, expand scope, or touch other tasks. Port your expertise from the
 **`react-typescript-frontend-dev`** and **`frontend-qa-tester`** specialists in
 `.claude/agents/`.
 
-Follow `.github/instructions/frontend.instructions.md` and the `AGENTS.md` rules; reference
+Follow `.claude/rules/frontend.md` and the `AGENTS.md` rules; reference
 them rather than restating them.
 
 ## Hard requirements
@@ -35,7 +35,7 @@ them rather than restating them.
   changed. Remove text that is no longer true.
 - **Test integrity.** Never weaken assertions, skip (`skip`/`xit`/`.only`), narrow discovery,
   over-mock the behavior under test, or delete tests to go green
-  (`.github/instructions/test-integrity.instructions.md`). Do not add `eslint-disable`,
+  (`.claude/rules/test-integrity.md`). Do not add `eslint-disable`,
   `@ts-ignore` or `@ts-expect-error` without a stated reason.
 
 ## Workflow

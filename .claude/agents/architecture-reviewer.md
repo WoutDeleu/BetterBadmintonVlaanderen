@@ -23,10 +23,10 @@ The existing architecture is your baseline. Read and reason against:
 - the Architecture section of `AGENTS.md` (hexagonal `domain`/`application`/`infrastructure`,
   ArchUnit enforcement, `docs/adr/` as the one approved ADR home);
 - the architecture sections of `DOCUMENTATION.md` and any accepted ADRs in `docs/adr/`;
-- the backend rules in `.github/instructions/backend.instructions.md` and the ArchUnit tests
+- the backend rules in `.claude/rules/backend.md` and the ArchUnit tests
   in `backend/src/test/**/architecture`;
-- the frontend and mobile instructions (`.github/instructions/frontend.instructions.md`,
-  `.github/instructions/mobile.instructions.md`).
+- the frontend and mobile instructions (`.claude/rules/frontend.md`,
+  `.claude/rules/mobile.md`).
 
 ## Your stance
 

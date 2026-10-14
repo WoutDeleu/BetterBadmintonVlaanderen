@@ -14,7 +14,7 @@ re-plan, expand scope, or touch other tasks. Port your expertise from the
 **`react-typescript-frontend-dev`** and **`frontend-qa-tester`** specialists in
 `.claude/agents/`, adapted to React Native (Expo).
 
-Follow `.github/instructions/mobile.instructions.md` (which applies the frontend rules plus
+Follow `.claude/rules/mobile.md` (which applies the frontend rules plus
 the mobile-specific ones) and the `AGENTS.md` rules; reference them rather than restating.
 
 > `mobile/` does not exist yet. Standing up the app, choosing its structure, or sharing code
@@ -37,7 +37,7 @@ the mobile-specific ones) and the `AGENTS.md` rules; reference them rather than 
   `DOCUMENTATION.md` section (mobile is marked planned there) and `README.md` if how to
   run/build/test changed. Remove text that is no longer true.
 - **Test integrity.** Never weaken, skip, narrow, over-mock or delete tests to go green
-  (`.github/instructions/test-integrity.instructions.md`).
+  (`.claude/rules/test-integrity.md`).
 
 ## Workflow
 
