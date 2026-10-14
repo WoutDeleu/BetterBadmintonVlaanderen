@@ -57,6 +57,16 @@ To provide badminton enthusiasts in Flanders with powerful tools for:
 
 ## Architecture Design
 
+### Architecture Decisions (ADRs)
+
+Significant, structural architecture decisions are recorded as ADRs in [`docs/adr/`](docs/adr/) — the one approved exception to keeping architecture in this document. The default is **no architectural change**: an ADR is added only when a change survives the planner's architecture review and grilling. Use [`docs/adr/0000-adr-template.md`](docs/adr/0000-adr-template.md) (context, decision drivers, options considered, decision, consequences). New ADRs should be linked below as they are accepted.
+
+_No ADRs accepted yet._
+
+### Architecture diagrams
+
+The diffable diagram-as-code sources live in [`docs/architecture/`](docs/architecture/) — the data-model UML in [`data-model.md`](docs/architecture/data-model.md) and the C4 context/container/component views in [`c4.md`](docs/architecture/c4.md). The ASCII overview below is a quick textual summary; the Mermaid sources are the maintained diagrams and are updated whenever an ADR changes the architecture.
+
 ### Architectural Principles
 
 #### 1. Hexagonal Architecture (Ports and Adapters)
@@ -562,7 +572,7 @@ interface PlayerSelectorProps {
 #### Clone and Setup
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone ________
 cd BetterBadmintonVlaanderen
 
 # Backend setup
@@ -760,6 +770,13 @@ test('should display ranking projection after simulation', async () => {
   });
 });
 ```
+
+#### End-to-End Testing (Playwright MCP)
+
+End-to-end browser flows run through the Playwright MCP server, registered as `playwright` in `.mcp.json` (headless; artifacts in `.playwright-mcp/`). The QA agent drives a real browser to exercise user journeys and assert on what the user sees.
+
+- Scope: the web frontend and the Expo **web** build. Native iOS/Android E2E is out of scope for Playwright and needs a device runner such as Appium or Detox.
+- Prerequisite: install the browser once with `npx playwright install chromium`, and start the app locally first.
 
 ---
 
@@ -1346,9 +1363,9 @@ public record ExternalLinks(URI toernooiNl, URI portal) {}   // either may be nu
 ```yaml
 external-links:
   toernooi-nl:
-    base-url: <to be verified>        # Badminton Vlaanderen's toernooi.nl environment
-    player-path: <to be verified>
-    tournament-path: <to be verified>
+    base-url: ________        # Fill in from SETUP_PLACEHOLDERS_TO_FILL.md (Badminton Vlaanderen's toernooi.nl environment)
+    player-path: ________
+    tournament-path: ________
 ```
 
 **Hexagonal layout:**
@@ -1677,8 +1694,8 @@ metadata:
   name: app-secrets
 type: Opaque
 data:
-  database-password: <base64-encoded-password>
-  jwt-secret: <base64-encoded-secret>
+  database-password: ________  # base64-encoded value (fill in locally; do not commit real secrets)
+  jwt-secret: ________         # base64-encoded value (fill in locally; do not commit real secrets)
 ```
 
 ---

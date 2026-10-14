@@ -178,3 +178,8 @@ Desktop.ini
 
 # Linux
 *~
+# Playwright MCP E2E artifacts
+.playwright-mcp/
+
+# Personal notes
+todos.txt
